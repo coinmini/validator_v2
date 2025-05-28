@@ -143,19 +143,34 @@ def load_model(
     # check whether it is a lora weight
     if cached_lora:
         logger.info("Repo is a lora weight, loading model with adapter weights")
-        with open("lora/adapter_config.json", "r") as f:
+        """
+        直接从本地加载 adapter_config.json
+        """
+        config_path = os.path.join(model_name_or_path, "adapter_config.json")
+
+        if not os.path.exists(config_path):
+            logger.error(f"adapter_config.json not found in {model_name_or_path}")
+            return None
+
+        with open(config_path, "r", encoding="utf-8") as f:
             adapter_config = json.load(f)
+        
+        logger.info("Loaded LoRA config successfully")
+
         base_model = adapter_config["base_model_name_or_path"]
+        # 直接加载本地的基础模型
         model = AutoModelForCausalLM.from_pretrained(
             base_model, token=HF_TOKEN, **model_kwargs
         )
-        # download the adapter weights
-        download_lora_repo(model_name_or_path, revision)
+
+        # 直接加载 LoRA 适配器
+        logger.info(f"Loading LoRA adapter from {model_name_or_path}")
         model = PeftModel.from_pretrained(
             model,
-            "lora",
+            model_name_or_path,  # 这里改为本地路径
             device_map=None,
         )
+
         model = model.merge_and_unload()
         logger.info("Loaded model with adapter weights")
     # assuming full fine-tuned model
@@ -318,10 +333,14 @@ def validate(
         tokenizer_model_path = model_name_or_path
 
         # Determine the correct tokenizer path, especially for LoRA models
-        is_lora = download_lora_config(model_name_or_path, revision)
+        is_lora: bool = True
         cached_lora = is_lora
-        adapter_config_path = Path("lora/adapter_config.json")
+        adapter_config_path = os.path.join(model_name_or_path, "adapter_config.json")
 
+        if not os.path.exists(adapter_config_path):
+            logger.error(f"adapter_config.json not found in {model_name_or_path}")
+            return None
+        
         if is_lora:
             if adapter_config_path.exists():
                 logger.info(
