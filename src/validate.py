@@ -342,7 +342,7 @@ def validate(
             return None
         
         if is_lora:
-            if adapter_config_path.exists():
+            if os.path.exists(adapter_config_path):
                 logger.info(
                     f"Model {model_name_or_path} is a LoRA model. Validating its base model for tokenizer."
                 )
